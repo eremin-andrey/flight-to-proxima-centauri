@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Полёт до Проксимы Центавра — релятивистский симулятор</title>
+<style>
+  :root{
+    --bg:#05060f; --panel:#0d1024; --panel2:#141838;
+    --accent:#5ad1ff; --accent2:#ff7a59; --earth:#3d9be0; --proxima:#ff5c3a;
+    --text:#e8ecff; --muted:#8b93c4; --grid:#222a55;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Segoe UI',-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(ellipse at top,#0a1030 0%,var(--bg) 70%);
+    color:var(--text);min-height:100vh;padding:24px;
+  }
+  .wrap{max-width:1100px;margin:0 auto}
+  header{text-align:center;margin-bottom:22px}
+  h1{font-size:30px;font-weight:700;letter-spacing:.5px;
+     background:linear-gradient(90deg,var(--accent),#a98bff,var(--accent2));
+     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .subtitle{color:var(--muted);margin-top:6px;font-size:14px}
+
+  .stage{position:relative;height:260px;border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,#02030a,#080b1e);border:1px solid var(--grid);
+    box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  canvas{display:block;width:100%;height:100%}
+  .viewgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .viewcap{font-size:13px;color:var(--muted);margin:0 0 7px 4px;font-weight:600}
+  .viewcap span{color:var(--text)}
+  @media(max-width:560px){.viewgrid{grid-template-columns:1fr}}
+
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:16px;margin:18px 0}
+  .card{background:var(--panel);border:1px solid var(--grid);border-radius:14px;padding:16px 18px}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+  label.row{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:6px;color:var(--muted)}
+  label.row b{color:var(--text);font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;accent-color:var(--accent);height:6px;cursor:pointer}
+  .seg{display:flex;gap:6px;margin-top:4px}
+  .seg button{flex:1;background:var(--panel2);color:var(--muted);border:1px solid var(--grid);
+    border-radius:8px;padding:7px 0;font-size:13px;cursor:pointer;transition:.15s}
+  .seg button.active{background:var(--accent);color:#04122a;border-color:var(--accent);font-weight:600}
+  .seg button:hover:not(.active){color:var(--text)}
+
+  .playbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{background:linear-gradient(135deg,var(--accent),#6f9bff);color:#04122a;border:none;
+    border-radius:10px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
+  .btn:hover{filter:brightness(1.1)}
+  .btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--grid)}
+
+  .clocks{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}
+  .clock{background:var(--panel);border:1px solid var(--grid);border-radius:14px;padding:20px;text-align:center;position:relative;overflow:hidden}
+  .clock.earth{border-color:#1d5d8f} .clock.ship{border-color:#8f3a26}
+  .clock .lbl{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+  .clock .val{font-size:42px;font-weight:700;font-variant-numeric:tabular-nums;margin:6px 0 2px}
+  .clock.earth .val{color:var(--earth)} .clock.ship .val{color:var(--proxima)}
+  .clock .unit{font-size:13px;color:var(--muted)}
+  .clock .ico{position:absolute;top:14px;right:16px;font-size:22px;opacity:.5}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:18px 0}
+  .stat{background:var(--panel);border:1px solid var(--grid);border-radius:12px;padding:14px 16px}
+  .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+  .stat .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:4px}
+
+  .progress{height:10px;background:var(--panel2);border-radius:6px;overflow:hidden;margin:10px 0 4px}
+  .progress > div{height:100%;width:0;background:linear-gradient(90deg,var(--earth),var(--accent),var(--proxima));transition:width .05s linear}
+
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+  th,td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--grid)}
+  th{color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.5px}
+  td:first-child,th:first-child{text-align:left}
+  tr.cur{background:rgba(90,209,255,.08)}
+  .mode-tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;background:var(--panel2);color:var(--accent);margin-left:8px;vertical-align:middle}
+  footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🚀 Полёт до Проксимы Центавра</h1>
+    <div class="subtitle">Релятивистский симулятор · профиль «разгон → крейсер → торможение» · полная СТО с замедлением времени</div>
+  </header>
+
+  <div class="viewgrid">
+    <div>
+      <div class="viewcap">🌍 Вид со стороны <span>(система Земли)</span></div>
+      <div class="stage"><canvas id="sky"></canvas></div>
+    </div>
+    <div>
+      <div class="viewcap">🛰️ Вид из кабины <span>(глазами экипажа)</span></div>
+      <div class="stage"><canvas id="cockpit"></canvas></div>
+    </div>
+  </div>
+
+  <div class="progress"><div id="progbar"></div></div>
+
+  <div class="controls">
+    <div class="card">
+      <h3>Крейсерская скорость</h3>
+      <label class="row">доля скорости света <b><span id="betaLbl">0.50</span> c</b></label>
+      <input id="beta" type="range" min="5" max="99" value="50" step="1">
+    </div>
+    <div class="card">
+      <h3>Ускорение</h3>
+      <label class="row">комфорт экипажа <b><span id="accLbl">1.0</span> g</b></label>
+      <div class="seg" id="accSeg">
+        <button data-g="0.1">0.1g</button>
+        <button data-g="1" class="active">1g</button>
+        <button data-g="3">3g</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Скорость анимации</h3>
+      <label class="row">воспроизведение <b><span id="spdLbl">1.0</span>×</b></label>
+      <input id="spd" type="range" min="25" max="400" value="100" step="25">
+    </div>
+    <div class="card">
+      <h3>Управление</h3>
+      <div class="playbar">
+        <button class="btn" id="play">▶ Старт</button>
+        <button class="btn ghost" id="reset">⟲ Сброс</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="clocks">
+    <div class="clock earth"><span class="ico">🌍</span>
+      <div class="lbl">Время на Земле</div>
+      <div class="val" id="earthY">0.00</div><div class="unit">лет прошло</div>
+    </div>
+    <div class="clock ship"><span class="ico">🛰️</span>
+      <div class="lbl">Время на корабле</div>
+      <div class="val" id="shipY">0.00</div><div class="unit">лет прошло (собственное время)</div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Текущая скорость</div><div class="v"><span id="curBeta">0.000</span> c</div></div>
+    <div class="stat"><div class="k">Лоренц-фактор γ</div><div class="v" id="curGamma">1.000</div></div>
+    <div class="stat"><div class="k">Замедление времени</div><div class="v"><span id="curDil">1.00</span>×</div></div>
+    <div class="stat"><div class="k">Пройдено пути</div><div class="v"><span id="curPct">0</span>%</div></div>
+    <div class="stat"><div class="k">Фаза полёта</div><div class="v" id="curPhase" style="font-size:18px">—</div></div>
+    <div class="stat" style="border-color:#2f6e3a"><div class="k">Перегрузка экипажа (собств.)</div><div class="v" id="curFelt" style="color:#5ad17a">1.00 g</div></div>
+    <div class="stat"><div class="k">Видимое ускорение (a/γ³)</div><div class="v"><span id="curCoord">1.00</span> g</div></div>
+  </div>
+
+  <div class="card">
+    <h3>Итоги миссии <span class="mode-tag" id="modeTag">режим: крейсер</span></h3>
+    <table>
+      <thead><tr><th>Параметр</th><th>Значение</th></tr></thead>
+      <tbody>
+        <tr><td>Полное время по Земле</td><td><b id="sumT">—</b></td></tr>
+        <tr><td>Полное время экипажа</td><td><b id="sumTau">—</b></td></tr>
+        <tr><td>Экипаж «выиграл» времени</td><td><b id="sumSave">—</b></td></tr>
+        <tr><td>Макс. достигнутая скорость</td><td><b id="sumVmax">—</b></td></tr>
+        <tr><td>Макс. Лоренц-фактор</td><td><b id="sumGmax">—</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <h3>Сравнение сценариев (при текущем ускорении)</h3>
+    <table id="cmp">
+      <thead><tr><th>v крейсер</th><th>Режим</th><th>Земля</th><th>Экипаж</th><th>γ max</th><th>Замедл.</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <footer>
+    Расстояние до Проксимы Центавра: 4.2465 св. года · c = 299 792 458 м/с<br>
+    Расчёт идентичен скрипту <b>proxima_flight.py</b>. Замедление времени = во сколько раз земные часы обгоняют бортовые.
+  </footer>
+</div>
+
+<script>
+const C=299792458, G=9.80665, LY=9.4607304725808e15, YEAR=365.25*24*3600;
+const DIST_LY=4.2465, D=DIST_LY*LY;
+
+// ---- Физика: профиль разгон-крейсер-торможение (полная СТО) ----
+function computeProfile(accel, betaCruise){
+  const a=accel;
+  let betaC=betaCruise, gammaC=1/Math.sqrt(1-betaC*betaC);
+  let x1=(C*C/a)*(gammaC-1), mode='крейсер';
+  if(2*x1>D){               // скорость недостижима к середине пути
+    mode='брахистохрона';
+    gammaC=1+a*(D/2)/(C*C);
+    betaC=Math.sqrt(1-1/(gammaC*gammaC));
+    x1=D/2;
+  }
+  const vC=betaC*C;
+  const t1=gammaC*vC/a, tau1=(C/a)*Math.atanh(betaC);
+  const x2=D-2*x1, t2=x2/vC, tau2=t2/gammaC;
+  const T=2*t1+t2, tauTotal=2*tau1+tau2;
+  return {a,betaC,gammaC,vC,x1,t1,tau1,x2,t2,T,tauTotal,mode};
+}
+// Состояние в момент координатного (земного) времени t
+function stateAt(p,t){
+  let x,beta,tau,phase,aProper;
+  if(t<=p.t1){                         // разгон
+    const k=p.a*t/C, r=Math.sqrt(1+k*k);
+    x=(C*C/p.a)*(r-1); beta=k/r; tau=(C/p.a)*Math.asinh(k); phase='разгон'; aProper=p.a;
+  }else if(t<=p.t1+p.t2){              // крейсер (двигатель выключен — невесомость)
+    const dt=t-p.t1; x=p.x1+p.vC*dt; beta=p.betaC; tau=p.tau1+dt/p.gammaC; phase='крейсер'; aProper=0;
+  }else{                               // торможение (зеркально)
+    const tr=p.T-t, k=p.a*tr/C, r=Math.sqrt(1+k*k);
+    x=D-(C*C/p.a)*(r-1); beta=k/r; tau=p.tauTotal-(C/p.a)*Math.asinh(k); phase='торможение'; aProper=p.a;
+  }
+  const gamma=1/Math.sqrt(1-beta*beta);
+  const aCoord=aProper/(gamma*gamma*gamma);   // видимое (координатное) ускорение = a/γ³
+  return {x,beta,gamma,tau,phase,aProper,aCoord};
+}
+function fmtT(s){
+  const y=s/YEAR;
+  if(y>=1) return y.toFixed(2)+' лет';
+  const d=s/86400; if(d>=1) return d.toFixed(1)+' дн';
+  return (s/3600).toFixed(1)+' ч';
+}
+
+// ---- Состояние UI ----
+let accel=1*G, betaCruise=0.50, playSpeed=1.0;
+let profile=computeProfile(accel,betaCruise);
+let missionT=0, playing=false, lastReal=null;
+
+// ---- Звёздное поле / warp ----
+const cv=document.getElementById('sky'), ctx=cv.getContext('2d');
+const cv2=document.getElementById('cockpit'), ctx2=cv2.getContext('2d');
+let W,H,stars=[], W2,H2,cstars=[];
+function resize(){
+  const r=cv.getBoundingClientRect();
+  cv.width=r.width*devicePixelRatio; cv.height=r.height*devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,1,1);
+  W=r.width; H=r.height;
+  const r2=cv2.getBoundingClientRect();
+  cv2.width=r2.width*devicePixelRatio; cv2.height=r2.height*devicePixelRatio;
+  ctx2.setTransform(devicePixelRatio,0,0,devicePixelRatio,1,1);
+  W2=r2.width; H2=r2.height;
+}
+function initStars(){
+  stars=[];
+  for(let i=0;i<160;i++) stars.push({x:Math.random()*W,y:Math.random()*H,z:Math.random()*0.8+0.2});
+  cstars=[];                                  // звёзды на небесной сфере (фикс. направления)
+  for(let i=0;i<340;i++) cstars.push({cos:Math.random()*2-1, phi:Math.random()*2*Math.PI, mag:Math.random()*0.7+0.35});
+}
+
+// Цвет звезды по доплер-фактору f (>1 синее смещение, <1 красное)
+function dopColor(f){
+  if(f>=2.0) return '160,200,255';
+  if(f>=1.3) return '190,215,255';
+  if(f>=1.05) return '235,242,255';
+  if(f>=0.92) return '255,250,235';
+  if(f>=0.78) return '255,200,120';
+  if(f>=0.62) return '255,140,70';
+  return '255,80,55';
+}
+
+// Вид из кабины: релятивистская аберрация + эффект Доплера + сокращение длины
+function drawCockpit(st){
+  ctx2.fillStyle='#01020a'; ctx2.fillRect(0,0,W2,H2);
+  const beta=st?st.beta:0, gamma=st?st.gamma:1;
+  const cx=W2/2, cy=H2/2, R=Math.min(W2,H2)*0.46, FOV=1.45;   // полу-угол поля зрения, рад
+  // светящийся «тоннель» впереди — ярче с ростом скорости
+  if(beta>0.05){
+    const g=ctx2.createRadialGradient(cx,cy,1,cx,cy,R*(0.3+beta*0.7));
+    g.addColorStop(0,'rgba(150,200,255,'+(0.05+beta*0.22)+')');
+    g.addColorStop(1,'rgba(150,200,255,0)');
+    ctx2.fillStyle=g; ctx2.fillRect(0,0,W2,H2);
+  }
+  for(const s of cstars){
+    const cosTp=(s.cos+beta)/(1+beta*s.cos);          // аберрация: новый угол от направления движения
+    const thetap=Math.acos(Math.max(-1,Math.min(1,cosTp)));
+    const r=R*thetap/FOV;
+    if(r>R) continue;                                  // вне переднего окна
+    const x=cx+r*Math.cos(s.phi), y=cy+r*Math.sin(s.phi);
+    const f=1/(gamma*(1-beta*cosTp));                  // релятивистский доплер-фактор
+    const size=s.mag*(0.7+Math.min(f,3)*0.5);
+    ctx2.fillStyle='rgba('+dopColor(f)+','+Math.max(.25,Math.min(1,0.3+f*0.4))+')';
+    ctx2.beginPath(); ctx2.arc(x,y,size,0,7); ctx2.fill();
+  }
+  // Проксима прямо по курсу — растёт по мере приближения
+  const frac=st?st.x/D:0;
+  if(frac>0.001){
+    const pr=2+frac*frac*22;
+    const fAhead=1/(gamma*(1-beta));                   // доплер строго вперёд
+    glow2(cx,cy,pr,'rgba('+dopColor(fAhead)+',1)');
+  }
+  // Текст: как путь видит экипаж
+  const remShip=st?((D-st.x)/gamma)/LY:DIST_LY;        // остаток пути в системе корабля (сжатие длины)
+  ctx2.fillStyle='#cdd6ff'; ctx2.font='12px sans-serif'; ctx2.textAlign='left'; ctx2.textBaseline='top';
+  ctx2.fillText('До Проксимы (борт): '+remShip.toFixed(2)+' св.лет', 12, 12);
+  ctx2.fillText('Сжатие расстояния: ×'+gamma.toFixed(2), 12, 30);
+  ctx2.fillStyle='#8b93c4';
+  ctx2.fillText('Полный путь для экипажа: '+(DIST_LY/gamma).toFixed(2)+' св.лет', 12, 48);
+}
+function glow2(x,y,r,c){
+  const g=ctx2.createRadialGradient(x,y,1,x,y,r*2.4);
+  g.addColorStop(0,c); g.addColorStop(.45,c.replace(',1)',',.4)')); g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx2.fillStyle=g; ctx2.beginPath(); ctx2.arc(x,y,r*2.4,0,7); ctx2.fill();
+  ctx2.fillStyle=c; ctx2.beginPath(); ctx2.arc(x,y,r,0,7); ctx2.fill();
+}
+function drawScene(st){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#02030a'; ctx.fillRect(0,0,W,H);
+  const beta=st?st.beta:0;
+  // звёзды летят влево, скорость и длина штриха растут с beta (warp)
+  for(const s of stars){
+    const v=(0.3+beta*beta*26)*s.z;
+    s.x-=v;
+    if(s.x<0){s.x=W;s.y=Math.random()*H;}
+    const len=Math.min(beta*beta*60*s.z, W*0.6);
+    ctx.strokeStyle='rgba(180,200,255,'+(0.35+s.z*0.5)+')';
+    ctx.lineWidth=s.z*1.4;
+    ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(s.x+len,s.y); ctx.stroke();
+  }
+  const pad=60, trackY=H/2, x0=pad, x1=W-pad;
+  // трасса
+  ctx.strokeStyle='rgba(90,120,200,.25)'; ctx.lineWidth=2; ctx.setLineDash([6,8]);
+  ctx.beginPath(); ctx.moveTo(x0,trackY); ctx.lineTo(x1,trackY); ctx.stroke(); ctx.setLineDash([]);
+  // Земля
+  glow(x0,trackY,16,'#3d9be0','#1d4d7a'); label('Земля',x0,trackY+34);
+  // Проксима
+  glow(x1,trackY,13,'#ff5c3a','#7a261a'); label('Проксима',x1,trackY+34);
+  // корабль
+  const frac=st?st.x/D:0;
+  const sx=x0+(x1-x0)*frac;
+  ctx.save(); ctx.translate(sx,trackY-2);
+  // факел двигателя — только когда двигатель работает (разгон/торможение)
+  const thrusting = st && st.aProper>0;
+  if(thrusting){
+    const braking = st.phase==='торможение';
+    const dir = braking ? 1 : -1;          // тормозим — факел вперёд (ретро-тяга), иначе назад
+    const len = 18+beta*40;
+    const x0g = braking ? 14 : -14;        // факел от носа (при торможении) или от кормы
+    const g=ctx.createLinearGradient(x0g, 0, x0g+dir*len, 0);
+    const col = braking ? '255,150,60' : '90,209,255';   // ретро-факел оранжевый
+    g.addColorStop(0,'rgba('+col+',.85)'); g.addColorStop(1,'rgba('+col+',0)');
+    ctx.fillStyle=g;
+    ctx.fillRect(Math.min(x0g, x0g+dir*len), -3, len, 6);
+  }
+  // корабль (при торможении развёрнут носом назад)
+  ctx.font='22px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  if(st && st.phase==='торможение'){ ctx.scale(-1,1); }
+  ctx.fillText('🚀',0,0); ctx.restore();
+}
+function glow(x,y,r,c1,c2){
+  const g=ctx.createRadialGradient(x,y,1,x,y,r*2.2);
+  g.addColorStop(0,c1); g.addColorStop(.5,c2); g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r*2.2,0,7); ctx.fill();
+  ctx.fillStyle=c1; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+}
+function label(t,x,y){ctx.fillStyle='#8b93c4';ctx.font='12px sans-serif';ctx.textAlign='center';ctx.fillText(t,x,y);}
+
+// ---- Обновление показателей ----
+function refreshSummary(){
+  profile=computeProfile(accel,betaCruise);
+  document.getElementById('sumT').textContent=fmtT(profile.T);
+  document.getElementById('sumTau').textContent=fmtT(profile.tauTotal);
+  document.getElementById('sumSave').textContent=fmtT(profile.T-profile.tauTotal)+
+     '  ('+(profile.T/profile.tauTotal).toFixed(2)+'×)';
+  const vmax=profile.betaC;
+  document.getElementById('sumVmax').textContent=vmax.toFixed(3)+' c';
+  document.getElementById('sumGmax').textContent=profile.gammaC.toFixed(3);
+  document.getElementById('modeTag').textContent='режим: '+profile.mode;
+  buildCompare();
+}
+function buildCompare(){
+  const rows=[0.1,0.2,0.5,0.8,0.99];
+  const tb=document.querySelector('#cmp tbody'); tb.innerHTML='';
+  for(const b of rows){
+    const p=computeProfile(accel,b);
+    const tr=document.createElement('tr');
+    if(Math.abs(b-betaCruise)<1e-9) tr.className='cur';
+    tr.innerHTML=`<td>${b.toFixed(2)} c</td><td>${p.mode}</td>`+
+      `<td>${fmtT(p.T)}</td><td>${fmtT(p.tauTotal)}</td>`+
+      `<td>${p.gammaC.toFixed(2)}</td><td>${(p.T/p.tauTotal).toFixed(2)}×</td>`;
+    tb.appendChild(tr);
+  }
+}
+function refreshLive(st){
+  document.getElementById('earthY').textContent=(missionT/YEAR).toFixed(2);
+  document.getElementById('shipY').textContent=(st.tau/YEAR).toFixed(2);
+  document.getElementById('curBeta').textContent=st.beta.toFixed(3);
+  document.getElementById('curGamma').textContent=st.gamma.toFixed(3);
+  document.getElementById('curDil').textContent=st.gamma.toFixed(2);
+  document.getElementById('curPct').textContent=Math.round(st.x/D*100);
+  document.getElementById('curPhase').textContent=st.phase;
+  document.getElementById('progbar').style.width=(st.x/D*100)+'%';
+  const feltG=st.aProper/G;
+  document.getElementById('curFelt').textContent=feltG.toFixed(2)+(feltG<0.01?' g (невесомость)':' g');
+  document.getElementById('curCoord').textContent=(st.aCoord/G).toFixed(2);
+}
+
+// ---- Анимационный цикл ----
+function loop(now){
+  if(playing){
+    if(lastReal==null) lastReal=now;
+    const dtReal=(now-lastReal)/1000; lastReal=now;
+    const playDur=14;                       // реальных секунд на всю миссию при 1×
+    missionT+=dtReal*(profile.T/playDur)*playSpeed;
+    if(missionT>=profile.T){missionT=profile.T; playing=false; document.getElementById('play').textContent='▶ Старт';}
+  }else{lastReal=null;}
+  const st=stateAt(profile,Math.min(missionT,profile.T));
+  drawScene(st); drawCockpit(st); refreshLive(st);
+  requestAnimationFrame(loop);
+}
+
+// ---- Слушатели ----
+const betaEl=document.getElementById('beta');
+betaEl.addEventListener('input',()=>{
+  betaCruise=(+betaEl.value)/100;
+  document.getElementById('betaLbl').textContent=betaCruise.toFixed(2);
+  resetRun(false); refreshSummary();
+});
+document.querySelectorAll('#accSeg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#accSeg button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); accel=parseFloat(b.dataset.g)*G;
+  document.getElementById('accLbl').textContent=parseFloat(b.dataset.g).toFixed(1);
+  resetRun(false); refreshSummary();
+}));
+const spdEl=document.getElementById('spd');
+spdEl.addEventListener('input',()=>{playSpeed=(+spdEl.value)/100;document.getElementById('spdLbl').textContent=playSpeed.toFixed(1);});
+document.getElementById('play').addEventListener('click',function(){
+  if(missionT>=profile.T) missionT=0;
+  playing=!playing; this.textContent=playing?'⏸ Пауза':'▶ Старт';
+});
+function resetRun(stop){missionT=0; if(stop!==false){playing=false;document.getElementById('play').textContent='▶ Старт';}}
+document.getElementById('reset').addEventListener('click',()=>resetRun(true));
+window.addEventListener('resize',()=>{resize();initStars();});
+
+// ---- Старт ----
+resize(); initStars(); refreshSummary(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
